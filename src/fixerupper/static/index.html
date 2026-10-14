@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FixerUpper</title>
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--fg:#e2e8f0;--mut:#94a3b8;--acc:#38bdf8}
+body{margin:0;font-family:system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--fg)}
+main{max-width:900px;margin:0 auto;padding:24px}
+.card{background:var(--card);border-radius:12px;padding:16px;margin:12px 0}
+#drop{border:2px dashed var(--mut);text-align:center;padding:32px}
+button{background:var(--acc);border:0;border-radius:8px;padding:8px 16px;font-weight:600;cursor:pointer}
+.critical{border-left:6px solid #ef4444}.high{border-left:6px solid #f97316}
+.medium{border-left:6px solid #eab308}.low{border-left:6px solid #64748b}
+.err{color:#fca5a5}small{color:var(--mut)}
+</style></head><body><main>
+<h1>FixerUpper</h1><p>Analyze Windows Event Viewer exports (XML, CSV, JSON) to diagnose crashes.</p>
+<div class="card" id="drop"><input type="file" id="file" accept=".xml,.csv,.json,.txt"> <button id="go">Analyze</button>
+<p><small>Export from Event Viewer: Action → Save All Events As… (XML or CSV). Files are processed locally.</small></p></div>
+<div id="out"></div>
+<script>
+const out=document.getElementById('out');
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
+document.getElementById('go').onclick=async()=>{
+  out.replaceChildren();
+  const f=document.getElementById('file').files[0];
+  if(!f){out.append(el('p','err','Choose a file first.'));return}
+  try{
+    const r=await fetch('/api/analyze',{method:'POST',body:await f.arrayBuffer()});
+    const j=await r.json();
+    if(!r.ok){out.append(el('p','err',j.error));return}
+    const s=el('div','card');
+    s.append(el('h2',null,j.total_events+' events, '+j.finding_count+' findings'));
+    s.append(el('small',null,Object.entries(j.by_level).map(([k,v])=>k+': '+v).join(' · ')));
+    out.append(s);
+    if(!j.findings.length)out.append(el('div','card','No crash-related issues detected.'));
+    for(const x of j.findings){
+      const c=el('div','card '+x.severity);
+      c.append(el('h3',null,x.title+' (ID '+x.event_id+')'));
+      c.append(el('p',null,x.explanation));
+      c.append(el('p',null,'Suggestion: '+x.suggestion));
+      c.append(el('small',null,[x.provider,x.time].filter(Boolean).join(' · ')));
+      out.append(c);
+    }
+  }catch(e){out.append(el('p','err','Request failed: '+e.message))}
+};
+</script></main></body></html>
